@@ -1,17 +1,22 @@
-name: Auto Runner
+name: run
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: "0 6,18 * * *"   # 06:00 et 18:00 UTC (Abidjan = UTC)
-  workflow_dispatch:          # déclenchement manuel possible
-
-permissions:
-  contents: read
+    - cron: "0 6,18 * * *"  # 2x/j à 06:00 et 18:00 UTC
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    env:
+      OUTPUT_DIR: outputs
+      DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+      GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+      GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+      GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
 
     steps:
       - name: Checkout
@@ -27,32 +32,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # (Debug) Inspection AVANT exécution
       - name: Inspecter l’arborescence (avant)
         run: |
-          echo "PWD=$(pwd)"
+          echo "***"
           echo "Contenu racine :"; ls -la
           echo "Contenu de outputs/ (s'il existe) :"
           if [ -d outputs ]; then
             find outputs -maxdepth 1 -type f -printf "%TY-%Tm-%Td %TH:%TM %p (%s bytes)\n" | sort || true
           fi
 
-      # Écrire la clé du service account depuis le secret
-      - name: Écrire la clé du service account
-        run: |
-          echo '${{ secrets.GDRIVE_SA_JSON }}' > sa.json
-
       - name: Run scraper (Python)
-        env:
-          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: sa.json
-          OUTPUT_DIR: outputs
         run: |
           python main.py
 
-      # (Debug) Inspection APRÈS exécution (montre ce qui a été généré localement)
       - name: Inspecter l’arborescence (après)
-        if: always()        # <-- ajoute cette ligne
+        if: always()
         run: |
           echo "Contenu de outputs/ après exécution :"
           if [ -d outputs ]; then
@@ -62,11 +56,11 @@ jobs:
             exit 1
           fi
 
-      # (Optionnel) Publier les fichiers comme artifact téléchargeable
       - name: Upload outputs as artifact
-        if: always()
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: scraper-outputs
           path: outputs/**
           retention-days: 7
+          if-no-files-found: warn
