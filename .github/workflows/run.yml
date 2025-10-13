@@ -1,4 +1,4 @@
-name: auto runer
+name: scraper-twice-daily
 
 on:
   schedule:
@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install deps
-        run: pip install -r src/requirements.txt
+        run: pip install -r requirements.txt
 
       # Recrée le fichier JSON du service account à partir d’un secret GitHub
       - name: Write service account key
@@ -30,4 +30,4 @@ jobs:
         env:
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: sa.json
-        run: python src/main.py
+        run: python main.py
