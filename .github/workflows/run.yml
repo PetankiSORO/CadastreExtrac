@@ -52,6 +52,7 @@ jobs:
 
       # (Debug) Inspection APRÈS exécution (montre ce qui a été généré localement)
       - name: Inspecter l’arborescence (après)
+        if: always()        # <-- ajoute cette ligne
         run: |
           echo "Contenu de outputs/ après exécution :"
           if [ -d outputs ]; then
