@@ -30,4 +30,4 @@ jobs:
         env:
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: sa.json
-        run: python main.py
+        run: python src/main.py
