@@ -40,24 +40,36 @@ if __name__ == "__main__":
                          f"Vérifie la cohérence entre config.output et l’écriture des fichiers.")
 
     # 3) Upload vers Google Drive
-    output_dir = os.environ.get("OUTPUT_DIR", "outputs")
-    folder_id  = os.environ["DRIVE_FOLDER_ID"]
+    # ... imports ...
 
+    output_dir = os.environ.get("OUTPUT_DIR", "outputs")
+    env_folder_id = os.environ.get("DRIVE_FOLDER_ID", "").strip() or None
+    
+    # Vérifier/Créer le dossier cible
+    try:
+        folder_id = gu.ensure_folder_exists(env_folder_id, fallback_name="CadastreExtrac")
+        if not env_folder_id:
+            print(f"[DRIVE] Dossier créé: CadastreExtrac → folderId={folder_id}")
+            print("[DRIVE] Copie cet ID dans le secret DRIVE_FOLDER_ID pour les prochains runs.")
+    except Exception as e:
+        print("[DRIVE] Impossible d’accéder au dossier cible. Détails :", e)
+        print("Conseils :")
+        print("- Si tu utilises le scope drive.file, le dossier doit être créé/visible par l’app (Option B).")
+        print("- Sinon, passe au scope complet drive et régénère le refresh token (Option A).")
+        raise
+    
     def guess_mime(p: Path) -> str | None:
-        # Drive sait deviner, mais on pose un mime pour .gpkg
         if p.suffix.lower() == ".gpkg":
             return "application/geopackage+sqlite3"
         return None
-
-    files = [p for p in Path(output_dir).glob("*") if p.is_file()]
-
+    
+    files = [p for p in Path(output_dir).glob("*") if p.is_file() and not p.name.startswith(".")]
     print(f"[LOCAL] Dossier de sortie : {output_dir}")
     print(f"[LOCAL] Nombre de fichiers détectés : {len(files)}")
+    
     for p in files:
         try:
-            mime = guess_mime(p)
-            fid = gu.upload_file_to_drive(str(p), folder_id, mime=mime)
+            fid = gu.upload_file_to_drive(str(p), folder_id, mime=guess_mime(p))
             print(f"[DRIVE] Upload OK: {p.name} → fileId={fid}")
         except Exception as e:
             print(f"[DRIVE] ERREUR sur {p.name} : {e}")
-
