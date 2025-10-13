@@ -20,10 +20,28 @@ if __name__ == "__main__":
     u.save_file_licence(licence, "Cadastre_Minier_Ci")
     print (" ")
     u.fin()
+    
+    # 2) Lister les fichiers locaux avant envoi
+    output_dir = os.environ.get("OUTPUT_DIR", getattr(c, "output", "outputs/")).rstrip("/")
+    files = sorted(Path(output_dir).glob("*"))
 
-    # 2) uploader tout le dossier outputs/ vers Drive
+    print(f"[LOCAL] Dossier de sortie : {output_dir}")
+    print(f"[LOCAL] Nombre de fichiers détectés : {len(files)}")
+    for f in files:
+        try:
+            size = f.stat().st_size
+        except Exception as e:
+            size = f"(taille inconnue : {e})"
+        print(f"[LOCAL] - {f.name} ({size} octets)")
+
+    if not files:
+        raise SystemExit(f"[ERREUR] Aucun fichier trouvé dans '{output_dir}'. "
+                         f"Vérifie la cohérence entre config.output et l’écriture des fichiers.")
+
+    # 3) Upload vers Google Drive
     folder_id = os.environ["DRIVE_FOLDER_ID"]
-    for path in glob.glob("outputs/*"):
-        mime, _ = mimetypes.guess_type(path)
-        fid = gu.upload_file_to_drive(path, folder_id, mime=mime)
-        print(f"[UPLOAD] {path} -> file_id={fid}")
+    for p in files:
+        mime, _ = mimetypes.guess_type(str(p))
+        fid = gu.upload_file_to_drive(str(p), folder_id, mime=mime)
+        print(f"[UPLOAD] {p} -> file_id={fid}")
+
