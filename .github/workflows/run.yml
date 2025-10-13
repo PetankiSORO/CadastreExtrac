@@ -3,7 +3,7 @@ name: run
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 6,18 * * *"  # 2x/j à 06:00 et 18:00 UTC
+    - cron: "0 */6 * * *"  # 2x/j à 06:00 et 18:00 UTC
 
 jobs:
   run:
