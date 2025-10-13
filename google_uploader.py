@@ -1,28 +1,26 @@
-# utils.py (ajoute ce bloc à la fin, sans casser tes fonctions existantes)
+# google_uploader.py
 import os
-from typing import Optional
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from google.oauth2.credentials import Credentials
 
-_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
-def _drive_service(sa_path: Optional[str] = None):
-    sa_path = sa_path or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "sa.json")
-    creds = service_account.Credentials.from_service_account_file(sa_path, scopes=_SCOPES)
-
-    print("GAuth ok")
+def build_drive_service_from_oauth():
+    creds = Credentials(
+        None,
+        refresh_token=os.environ["GDRIVE_REFRESH_TOKEN"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.environ["GDRIVE_CLIENT_ID"],
+        client_secret=os.environ["GDRIVE_CLIENT_SECRET"],
+        scopes=SCOPES,
+    )
+    # cache_discovery=False évite l’avertissement sur le cache local
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
-def upload_file_to_drive(local_path: str, folder_id: str, mime: Optional[str] = None) -> str:
-    """
-    Envoie un fichier local vers Google Drive dans le dossier folder_id.
-    Retourne l'ID du fichier créé.
-    """
-    service = _drive_service()
-    meta = {"name": os.path.basename(local_path), "parents": [folder_id]}
-    media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
+def upload_file_to_drive(filepath, folder_id, mime=None):
+    service = build_drive_service_from_oauth()
+    meta = {"name": os.path.basename(filepath), "parents": [folder_id]}
+    media = MediaFileUpload(filepath, mimetype=mime, resumable=True)
     created = service.files().create(body=meta, media_body=media, fields="id").execute()
-
-    print("Upload ok")
     return created["id"]
