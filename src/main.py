@@ -1,6 +1,6 @@
 # main.py (ajoute ces lignes à la fin)
 import os, glob, mimetypes
-import GoogleUploader  # ← importe la fonction ajoutée au-dessus
+import GoogleUploader as gu  # ← importe la fonction ajoutée au-dessus
 import utils as u
 import config as c
 
@@ -25,5 +25,5 @@ if __name__ == "__main__":
     folder_id = os.environ["DRIVE_FOLDER_ID"]
     for path in glob.glob("outputs/*"):
         mime, _ = mimetypes.guess_type(path)
-        fid = upload_file_to_drive(path, folder_id, mime=mime)
+        fid = gu.upload_file_to_drive(path, folder_id, mime=mime)
         print(f"[UPLOAD] {path} -> file_id={fid}")
