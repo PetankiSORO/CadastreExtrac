@@ -40,9 +40,13 @@ def ensure_folder_exists(folder_id: str | None, fallback_name: str = "CadastreMi
             ).execute()
             return folder_id
         except HttpError as e:
-            # On laisse remonter : le caller affichera une explication claire
+            # 404 -> on crée un nouveau dossier plutôt que d'échouer
+            if getattr(e, "status_code", None) == 404 or "notFound" in str(e):
+                print("[DRIVE] folderId invalide/invisible. Création d’un nouveau dossier dans Mon Drive.")
+            else:
             raise
 
+    
     # Créer un dossier dans "Mon Drive"
     meta = {"name": fallback_name, "mimeType": "application/vnd.google-apps.folder"}
     created = service.files().create(
