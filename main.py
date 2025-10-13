@@ -1,5 +1,6 @@
 # main.py (ajoute ces lignes à la fin)
 import os, glob, mimetypes
+from pathlib import Path
 import google_uploader as gu
 import utils as u
 import config as c
