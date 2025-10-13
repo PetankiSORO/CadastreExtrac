@@ -1,4 +1,4 @@
-name: scraper-twice-daily
+name: auto runer
 
 on:
   schedule:
