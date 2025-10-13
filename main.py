@@ -40,9 +40,24 @@ if __name__ == "__main__":
                          f"Vérifie la cohérence entre config.output et l’écriture des fichiers.")
 
     # 3) Upload vers Google Drive
-    folder_id = os.environ["DRIVE_FOLDER_ID"]
+    output_dir = os.environ.get("OUTPUT_DIR", "outputs")
+    folder_id  = os.environ["DRIVE_FOLDER_ID"]
+
+    def guess_mime(p: Path) -> str | None:
+        # Drive sait deviner, mais on pose un mime pour .gpkg
+        if p.suffix.lower() == ".gpkg":
+            return "application/geopackage+sqlite3"
+        return None
+
+    files = [p for p in Path(output_dir).glob("*") if p.is_file()]
+
+    print(f"[LOCAL] Dossier de sortie : {output_dir}")
+    print(f"[LOCAL] Nombre de fichiers détectés : {len(files)}")
     for p in files:
-        mime, _ = mimetypes.guess_type(str(p))
-        fid = gu.upload_file_to_drive(str(p), folder_id, mime=mime)
-        print(f"[UPLOAD] {p} -> file_id={fid}")
+        try:
+            mime = guess_mime(p)
+            fid = gu.upload_file_to_drive(str(p), folder_id, mime=mime)
+            print(f"[DRIVE] Upload OK: {p.name} → fileId={fid}")
+        except Exception as e:
+            print(f"[DRIVE] ERREUR sur {p.name} : {e}")
 
