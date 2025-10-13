@@ -5,9 +5,13 @@ on:
     - cron: "0 6,18 * * *"   # 06:00 et 18:00 UTC (Abidjan = UTC)
   workflow_dispatch:          # déclenchement manuel possible
 
+permissions:
+  contents: read
+
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -19,15 +23,49 @@ jobs:
           python-version: "3.11"
 
       - name: Install deps
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      # Recrée le fichier JSON du service account à partir d’un secret GitHub
-      - name: Write service account key
+      # (Debug) Inspection AVANT exécution
+      - name: Inspecter l’arborescence (avant)
+        run: |
+          echo "PWD=$(pwd)"
+          echo "Contenu racine :"; ls -la
+          echo "Contenu de outputs/ (s'il existe) :"
+          if [ -d outputs ]; then
+            find outputs -maxdepth 1 -type f -printf "%TY-%Tm-%Td %TH:%TM %p (%s bytes)\n" | sort || true
+          fi
+
+      # Écrire la clé du service account depuis le secret
+      - name: Écrire la clé du service account
         run: |
           echo '${{ secrets.GDRIVE_SA_JSON }}' > sa.json
 
-      - name: Run scraper
+      - name: Run scraper (Python)
         env:
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: sa.json
-        run: python main.py
+          OUTPUT_DIR: outputs
+        run: |
+          python main.py
+
+      # (Debug) Inspection APRÈS exécution (montre ce qui a été généré localement)
+      - name: Inspecter l’arborescence (après)
+        run: |
+          echo "Contenu de outputs/ après exécution :"
+          if [ -d outputs ]; then
+            find outputs -maxdepth 1 -type f -printf "%TY-%Tm-%Td %TH:%TM %p (%s bytes)\n" | sort || true
+          else
+            echo "Le dossier 'outputs' n'existe pas."
+            exit 1
+          fi
+
+      # (Optionnel) Publier les fichiers comme artifact téléchargeable
+      - name: Upload outputs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-outputs
+          path: outputs/**
+          retention-days: 7
