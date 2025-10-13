@@ -32,7 +32,7 @@ today_str = datetime.today().strftime("%d%m%Y")
 # ─────────────────────────────────────────────────────────────────────────────
 # Journalisation → FICHIER uniquement (aucune sortie terminal)
 # ─────────────────────────────────────────────────────────────────────────────
-LOG_DIR = (Path(__file__).resolve().parent / "log")
+LOG_DIR = (Path(__file__).resolve().parent / "outputs" / "logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / f"cadastre_{today_str}.log"
 
