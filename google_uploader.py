@@ -44,7 +44,7 @@ def ensure_folder_exists(folder_id: str | None, fallback_name: str = "CadastreMi
             if getattr(e, "status_code", None) == 404 or "notFound" in str(e):
                 print("[DRIVE] folderId invalide/invisible. Création d’un nouveau dossier dans Mon Drive.")
             else:
-            raise
+                raise
 
     
     # Créer un dossier dans "Mon Drive"
