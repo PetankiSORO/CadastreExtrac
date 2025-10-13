@@ -16,4 +16,4 @@ outSR = 4326
 
 # - Parametre de sauvegardes des couches
 output = "outputs/"
-log_output = "log/"
+log_output = "logs/"
