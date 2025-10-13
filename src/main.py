@@ -1,6 +1,6 @@
 # main.py (ajoute ces lignes à la fin)
 import os, glob, mimetypes
-import GoogleUploader as gu
+import Google_Uploader as gu
 import utils as u
 import config as c
 
