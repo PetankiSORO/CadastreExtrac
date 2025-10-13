@@ -25,14 +25,14 @@ import pandas as pd
 import config as c # paramètres globaux (url, headers, timeouts, chemins, etc.)
 
 # » Date d'aujourd'hui
-today_str = datetime.today().strftime("%d%m%Y")
+today_str = datetime.today().strftime("%d%m%Y%H%M")
 
 # %% FONCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────────────────
 # Journalisation → FICHIER uniquement (aucune sortie terminal)
 # ─────────────────────────────────────────────────────────────────────────────
-LOG_DIR = (Path(__file__).resolve().parent / "outputs" / "logs")
+LOG_DIR = (Path(__file__).resolve().parent / "outputs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / f"cadastre_{today_str}.log"
 
@@ -346,7 +346,7 @@ def fusion_feature(
 
 def _prepare_output_paths(name: str, file_format: str) -> Tuple[str, str, str]:
     driver = "GPKG" if file_format == ".gpkg" else "ESRI Shapefile"
-    file = f"{c.output}{name}{file_format}"
+    file = f"{c.output}{name}_{today_str}{file_format}"
     _mkdir_parents(Path(file).parent)
     return driver, file
 
