@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 from pathlib import Path
 from typing import Optional
 
 import geopandas as gpd
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 import src.config as cfg
 
@@ -94,48 +94,54 @@ def save_single(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Google Drive
+# Google Drive — Authentification OAuth 2.0
 # ──────────────────────────────────────────────────────────────────────────────
 def _build_drive_service():
     """
-    Construit le client Drive API v3.
-    Stratégie :
-      1. Service Account JSON  → GDRIVE_SA_JSON (prioritaire)
-      2. OAuth2 refresh token → GDRIVE_CLIENT_ID / _SECRET / _REFRESH_TOKEN
+    Construit le client Drive API v3 via OAuth 2.0 (refresh token).
+    
+    Environnement requis :
+      - GDRIVE_CLIENT_ID
+      - GDRIVE_CLIENT_SECRET
+      - GDRIVE_REFRESH_TOKEN
     """
-    sa_path = Path(cfg.GDRIVE_CREDS_FILE)
-
-    # ── Méthode 1 : Service Account JSON ───────────────────────────────────
-    if sa_path.exists() and cfg.GDRIVE_SA_JSON:
-        logger.info("Drive auth : Service Account (%s).", sa_path)
-        creds = service_account.Credentials.from_service_account_file(
-            str(sa_path),
-            scopes=_GDRIVE_SCOPES,
+    client_id = os.getenv("GDRIVE_CLIENT_ID")
+    client_secret = os.getenv("GDRIVE_CLIENT_SECRET")
+    refresh_token = os.getenv("GDRIVE_REFRESH_TOKEN")
+    
+    # Vérifier que tous les secrets sont présents
+    if not all([client_id, client_secret, refresh_token]):
+        raise ValueError(
+            "❌ Secrets OAuth manquants.\n"
+            "   → Vérifiez les variables d'environnement :\n"
+            "      - GDRIVE_CLIENT_ID\n"
+            "      - GDRIVE_CLIENT_SECRET\n"
+            "      - GDRIVE_REFRESH_TOKEN"
         )
-        return build("drive", "v3", credentials=creds, cache_discovery=False)
-
-    # ── Méthode 2 : OAuth2 (refresh token) ─────────────────────────────────
-    if cfg.GDRIVE_CLIENT_ID and cfg.GDRIVE_CLIENT_SECRET and cfg.GDRIVE_REFRESH_TOKEN:
-        logger.info("Drive auth : OAuth2 refresh token.")
-        creds = Credentials(
-            token=None,
-            refresh_token=cfg.GDRIVE_REFRESH_TOKEN,
-            client_id=cfg.GDRIVE_CLIENT_ID,
-            client_secret=cfg.GDRIVE_CLIENT_SECRET,
-            scopes=_GDRIVE_SCOPES,
-        )
-        creds.refresh(Request())
-        return build("drive", "v3", credentials=creds, cache_discovery=False)
-
-    raise FileNotFoundError(
-        "Aucune méthode d'authentification Drive disponible.\n"
-        "→ Définissez GDRIVE_SA_JSON (chemin vers le JSON du SA)\n"
-        "   OU  GDRIVE_CLIENT_ID + GDRIVE_CLIENT_SECRET + GDRIVE_REFRESH_TOKEN.\n"
-        "→ Vérifiez les secrets GitHub : GDRIVE_SA_JSON, GDRIVE_CLIENT_ID, "
-        "GDRIVE_CLIENT_SECRET, GDRIVE_REFRESH_TOKEN."
+    
+    logger.info("Drive auth : OAuth 2.0 (refresh token).")
+    
+    # Créer les credentials
+    credentials = Credentials(
+        token=None,  # Sera régénéré
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=_GDRIVE_SCOPES,
     )
+    
+    # Rafraîchir le token d'accès
+    request = Request()
+    credentials.refresh(request)
+    
+    # Construire le client Drive
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Google Drive — Opérations fichiers
+# ──────────────────────────────────────────────────────────────────────────────
 def _list_drive_files(service, folder_id: str, name_prefix: str) -> list[dict]:
     """Liste les fichiers d'un dossier Drive dont le nom commence par `name_prefix`."""
     query = (
@@ -161,36 +167,48 @@ def _delete_old_files(service, files: list[dict], keep: int) -> None:
 def upload_to_drive(local_path: Path, folder_id: Optional[str] = None) -> Optional[str]:
     """
     Upload un fichier local sur Google Drive.
-    Retourne l'ID Drive du fichier uploadé, ou None en cas d'erreur.
+    
+    Args:
+        local_path: Chemin du fichier local à uploader
+        folder_id: ID du dossier Drive (par défaut : DRIVE_FOLDER_ID)
+    
+    Returns:
+        ID du fichier Drive uploadé, ou None en cas d'erreur
     """
-    folder_id = folder_id or cfg.DRIVE_FOLDER_ID
+    folder_id = folder_id or os.getenv("DRIVE_FOLDER_ID")
+    
     if not folder_id:
         logger.error("DRIVE_FOLDER_ID non défini — upload ignoré.")
         return None
+    
     if not local_path.exists():
         logger.error("Fichier introuvable pour upload : %s", local_path)
         return None
 
     try:
-        service   = _build_drive_service()
+        service = _build_drive_service()
         mime_type = mimetypes.guess_type(str(local_path))[0] or "application/octet-stream"
 
         # Récupérer les anciens fichiers avant upload (pour rotation)
-        prefix   = local_path.stem.split("_")[0]
+        prefix = local_path.stem.split("_")[0]
         existing = _list_drive_files(service, folder_id, prefix)
 
-        # Upload
-        meta    = {"name": local_path.name, "parents": [folder_id]}
-        media   = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=True)
-        result  = service.files().create(
-            body=meta, media_body=media, fields="id, name"
+        # Préparer et uploader le fichier
+        metadata = {"name": local_path.name, "parents": [folder_id]}
+        media = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=True)
+        
+        result = service.files().create(
+            body=metadata,
+            media_body=media,
+            fields="id, name"
         ).execute()
 
         file_id: str = result["id"]
         logger.info("✅ Upload Drive OK : %s (id=%s)", result["name"], file_id)
 
         # Rotation : suppression des anciens fichiers excédentaires
-        _delete_old_files(service, existing, keep=cfg.GDRIVE_KEEP_LAST_N - 1)
+        keep_count = getattr(cfg, "GDRIVE_KEEP_LAST_N", 7)
+        _delete_old_files(service, existing, keep=keep_count - 1)
 
         return file_id
 
@@ -202,17 +220,26 @@ def upload_to_drive(local_path: Path, folder_id: Optional[str] = None) -> Option
 def upload_outputs(paths: list[Optional[Path]]) -> dict[str, str]:
     """
     Upload une liste de fichiers locaux sur Drive.
+    
     Ignore les None et les formats absents de GDRIVE_UPLOAD_FORMATS.
-    Retourne {filename: drive_id}.
+    
+    Returns:
+        {filename: drive_id}
     """
     results: dict[str, str] = {}
+    
+    upload_formats = getattr(cfg, "GDRIVE_UPLOAD_FORMATS", [".gpkg", ".shp"])
+    
     for path in paths:
         if path is None:
             continue
-        if path.suffix not in cfg.GDRIVE_UPLOAD_FORMATS:
+        
+        if path.suffix not in upload_formats:
             logger.debug("Format '%s' ignoré (hors GDRIVE_UPLOAD_FORMATS).", path.suffix)
             continue
+        
         drive_id = upload_to_drive(path)
         if drive_id:
             results[path.name] = drive_id
+    
     return results
