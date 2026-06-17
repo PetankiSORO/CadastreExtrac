@@ -132,7 +132,7 @@ GDRIVE_UPLOAD_FORMATS: set[str] = {
 #  6. LOGGING
 # ══════════════════════════════════════════════════════════════════════════════
 
-LOG_DIR: Path = Path("data/log")
+LOG_DIR: Path = Path("data/logs")
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
 
 
