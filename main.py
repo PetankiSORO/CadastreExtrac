@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import src.config as cfg
 from src.logging_setup import setup_logger, get_logger
@@ -44,7 +45,7 @@ def run() -> int:
 
         # ── 5. Sauvegarde + Upload ────────────────────────────────────────────
         logger.info("[5/5] Sauvegarde locale et upload Google Drive…")
-        saved: list = []
+        saved: list[Path] = []
 
         # Licences : fusion des groupes Demandes + Licences
         licence_groups = {
@@ -64,6 +65,14 @@ def run() -> int:
         else:
             logger.warning("Aucune couche '%s' disponible.", cfg.ADMIN_GROUP)
 
+        # ✅ Ajouter le fichier `.log` à l'upload
+        log_file = Path(cfg.LOG_DIR) / f"cadastre_{timestamp}.log"
+        if log_file.exists():
+            saved.append(log_file)
+            logger.info("📋 Fichier log ajouté : %s", log_file.name)
+        else:
+            logger.warning("⚠️  Fichier log introuvable : %s", log_file)
+        
         # Upload Google Drive
         uploaded = storage.upload_outputs(saved)
         if uploaded:
