@@ -183,11 +183,8 @@ def upload_to_drive(local_path: Path, folder_id: Optional[str] = None) -> Option
         service = _build_drive_service()
         mime_type = mimetypes.guess_type(str(local_path))[0] or "application/octet-stream"
 
-        # Récupérer les anciens fichiers avant upload (pour rotation)
-        prefix = local_path.stem.split("_")[0]
-        existing = _list_drive_files(service, folder_id, prefix)
-
         # Préparer et uploader le fichier
+        logger.info("📤 Upload en cours : %s", local_path.name)
         metadata = {"name": local_path.name, "parents": [folder_id]}
         media = MediaFileUpload(str(local_path), mimetype=mime_type, resumable=True)
         
@@ -199,10 +196,6 @@ def upload_to_drive(local_path: Path, folder_id: Optional[str] = None) -> Option
 
         file_id: str = result["id"]
         logger.info("✅ Upload Drive OK : %s (id=%s)", result["name"], file_id)
-
-        # Rotation : suppression des anciens fichiers excédentaires
-        keep_count = getattr(cfg, "GDRIVE_KEEP_LAST_N", 7)
-        _delete_old_files(service, existing, keep=keep_count - 1)
 
         return file_id
 
