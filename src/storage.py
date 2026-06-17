@@ -23,7 +23,7 @@ _DRIVERS: dict[str, str] = {
     ".gpkg": "GPKG",
     ".shp":  "ESRI Shapefile",
 }
-_GDRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
+_GDRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -98,46 +98,40 @@ def save_single(
 # ──────────────────────────────────────────────────────────────────────────────
 def _build_drive_service():
     """
-    Construit le client Drive API v3 via OAuth 2.0 (refresh token).
-    
-    Environnement requis :
-      - GDRIVE_CLIENT_ID
-      - GDRIVE_CLIENT_SECRET
-      - GDRIVE_REFRESH_TOKEN
+    Authentification OAuth 2.0 uniquement (pas de Service Account).
     """
-    client_id = os.getenv("GDRIVE_CLIENT_ID")
-    client_secret = os.getenv("GDRIVE_CLIENT_SECRET")
-    refresh_token = os.getenv("GDRIVE_REFRESH_TOKEN")
+    client_id = os.getenv('GDRIVE_CLIENT_ID')
+    client_secret = os.getenv('GDRIVE_CLIENT_SECRET')
+    refresh_token = os.getenv('GDRIVE_REFRESH_TOKEN')
     
-    # Vérifier que tous les secrets sont présents
     if not all([client_id, client_secret, refresh_token]):
+        logger.error("❌ Secrets OAuth manquants")
         raise ValueError(
-            "❌ Secrets OAuth manquants.\n"
-            "   → Vérifiez les variables d'environnement :\n"
-            "      - GDRIVE_CLIENT_ID\n"
-            "      - GDRIVE_CLIENT_SECRET\n"
-            "      - GDRIVE_REFRESH_TOKEN"
+            "GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, GDRIVE_REFRESH_TOKEN "
+            "doivent être définis"
         )
     
     logger.info("Drive auth : OAuth 2.0 (refresh token).")
     
-    # Créer les credentials
-    credentials = Credentials(
-        token=None,  # Sera régénéré
-        refresh_token=refresh_token,
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=client_id,
-        client_secret=client_secret,
-        scopes=_GDRIVE_SCOPES,
-    )
-    
-    # Rafraîchir le token d'accès
-    request = Request()
-    credentials.refresh(request)
-    
-    # Construire le client Drive
-    return build("drive", "v3", credentials=credentials, cache_discovery=False)
-
+    try:
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=_GDRIVE_SCOPES,  # ✅ Doit correspondre au token généré
+        )
+        
+        # Rafraîchir immédiatement pour vérifier
+        request = Request()
+        creds.refresh(request)
+        
+        return build("drive", "v3", credentials=creds, cache_discovery=False)
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur OAuth : {e}")
+        raise
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Google Drive — Opérations fichiers
