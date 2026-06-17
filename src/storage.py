@@ -220,13 +220,28 @@ def upload_outputs(paths: list[Optional[Path]]) -> dict[str, str]:
     for path in paths:
         if path is None:
             continue
+
+        # ✅ LOGS toujours uploadés, même hors GDRIVE_UPLOAD_FORMATS
+        is_log = path.suffix == ".log"
+        is_valid_format = path.suffix in upload_formats
+
+        if not (is_log or is_valid_format):
+            logger.debug(
+                "Format '%s' ignoré (hors GDRIVE_UPLOAD_FORMATS).", 
+                path.suffix
+            )
+            continue
         
-        if path.suffix not in upload_formats:
-            logger.debug("Format '%s' ignoré (hors GDRIVE_UPLOAD_FORMATS).", path.suffix)
+        if not path.exists():
+            logger.warning("⏭️  Fichier introuvable : %s", path)
             continue
         
         drive_id = upload_to_drive(path)
         if drive_id:
             results[path.name] = drive_id
+            emoji = "📋" if is_log else "📦"
+            logger.info("%s Uploadé : %s → %s", emoji, path.name, drive_id)
+        else:
+            logger.error("❌ Échec upload : %s", path.name)
     
     return results
