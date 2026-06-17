@@ -6,6 +6,10 @@ on:
     - cron: "0 0,6,12,18 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   cadastre-extract:
     runs-on: ubuntu-latest
@@ -29,8 +33,18 @@ jobs:
           GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
         run: |
           mkdir -p /tmp
-          echo "$GDRIVE_SA_JSON" > /tmp/gdrive_credentials.json
+          printf '%s' "$GDRIVE_SA_JSON" > /tmp/gdrive_credentials.json
           chmod 600 /tmp/gdrive_credentials.json
+
+      - name: "🔍 Vérifier credentials Drive"
+        run: |
+          python3 -c "
+          import json
+          with open('/tmp/gdrive_credentials.json') as f:
+              d = json.load(f)
+          print('✅ JSON valide')
+          print('SA email:', d.get('client_email'))
+          print('Type:', d.get('type'))
 
       - name: "⛏️ Extraction du cadastre minier"
         env:
