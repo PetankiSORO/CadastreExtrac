@@ -38,13 +38,18 @@ jobs:
 
       - name: "🔍 Vérifier credentials Drive"
         run: |
-          python3 -c "
-          import json
-          with open('/tmp/gdrive_credentials.json') as f:
-              d = json.load(f)
-          print('✅ JSON valide')
-          print('SA email:', d.get('client_email'))
-          print('Type:', d.get('type'))
+          python3 << 'EOF'
+          import json, sys
+          try:
+              with open('/tmp/gdrive_credentials.json') as f:
+                  d = json.load(f)
+              print('✅ JSON valide')
+              print('SA email:', d.get('client_email'))
+              print('Type:', d.get('type'))
+          except Exception as e:
+              print('❌ JSON invalide:', e)
+              sys.exit(1)
+          EOF
 
       - name: "⛏️ Extraction du cadastre minier"
         env:
