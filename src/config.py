@@ -68,6 +68,10 @@ HTTP_RECORD_COUNT: int = int(os.environ.get("HTTP_RECORD_COUNT", "1000"))
 """Nombre d'enregistrements par requête ArcGIS."""
 
 HTTP_HEADERS    : dict = {"User-Agent": "Mozilla/5.0"}
+HTTP_RETRY_ATTEMPTS = int(os.getenv("HTTP_RETRY_ATTEMPTS", "5"))
+HTTP_RETRY_DELAY = float(os.getenv("HTTP_RETRY_DELAY", "3.0"))
+
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # ══════════════════════════════════════════════════════════════════════════════
