@@ -23,13 +23,13 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ── Portail Cadastre ─────────────────────────────────────────────────────────
-URL_CADASTRE: str = os.environ.get("URL_CADASTRE", "https://portals.landfolio.com/CoteDIvoire/FR/")
+URL_CADASTRE: str = os.environ.get("URL_CADASTRE", "")
 """URL du portail LandFolio CI."""
 
-PROXY_BASE: str = os.environ.get("PROXY_BASE", "https://portals.landfolio.com/CoteDIvoire/en/proxy.ashx?")
+PROXY_BASE: str = os.environ.get("PROXY_BASE", "")
 """Proxy HTTP de base (optionnel, ex: http://proxy:8080)."""
 
-PROXY_REFERER: str = os.environ.get("PROXY_REFERER", "https://portals.landfolio.com/CoteDIvoire/en/")
+PROXY_REFERER: str = os.environ.get("PROXY_REFERER", "")
 """Valeur du header Referer attendue par le portail."""
 
 
