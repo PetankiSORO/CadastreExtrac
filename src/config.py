@@ -123,6 +123,7 @@ GDRIVE_UPLOAD_FORMATS: set[str] = {
     ".shp",
     ".geojson",
     ".csv",
+    ".log",
 }
 """Formats de fichier uploadés sur Drive."""
 
