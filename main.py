@@ -1,75 +1,88 @@
-# main.py (ajoute ces lignes à la fin)
-import os, glob, mimetypes
-from pathlib import Path
-import google_uploader as gu
-import utils as u
-import config as c
+"""
+main.py — Point d'entrée unique.
+Conçu pour GitHub Actions (cron quotidien) + upload Google Drive.
+"""
+from __future__ import annotations
+
+import sys
+from datetime import datetime, timezone
+
+import src.config as cfg
+from src.logging_setup import setup_logger, get_logger
+from src import parser, geo, storage
+
+
+def run() -> int:
+    """
+    Pipeline complet : fetch → parse → download → convert → save → upload.
+    Retourne 0 (succès) ou 1 (erreur critique).
+    """
+    timestamp = datetime.now(tz=timezone.utc).strftime("%d%m%Y%H%M")
+    logger    = setup_logger(log_dir=cfg.LOG_DIR, log_filename=f"cadastre_{timestamp}.log")
+
+    logger.info("══════════════════════════════════════════════════════")
+    logger.info("  Cadastre Minier CI — Extraction quotidienne")
+    logger.info("  Timestamp UTC : %s", timestamp)
+    logger.info("══════════════════════════════════════════════════════")
+
+    try:
+        # ── 1. JSON d'initialisation ─────────────────────────────────────────
+        logger.info("[1/5] Récupération du JSON d'initialisation…")
+        html_json = parser.fetch_init_json(cfg.URL_CADASTRE)
+
+        # ── 2. Métadonnées des services ──────────────────────────────────────
+        logger.info("[2/5] Extraction des métadonnées des services…")
+        data_info = parser.extract_data_info(html_json)
+
+        # ── 3. Download des features ArcGIS ──────────────────────────────────
+        logger.info("[3/5] Téléchargement des features ArcGIS…")
+        data_json = parser.extract_data_json(data_info)
+
+        # ── 4. Conversion en GeoDataFrames ───────────────────────────────────
+        logger.info("[4/5] Conversion en GeoDataFrames…")
+        data_feature = geo.extract_data_feature(data_json)
+
+        # ── 5. Sauvegarde + Upload ────────────────────────────────────────────
+        logger.info("[5/5] Sauvegarde locale et upload Google Drive…")
+        saved: list = []
+
+        # Licences : fusion des groupes Demandes + Licences
+        licence_groups = {
+            k: v for k, v in data_feature.items()
+            if k in cfg.LICENCE_GROUPS
+        }
+        if licence_groups:
+            licence_gdf = geo.merge_geodataframes(*licence_groups.values())
+            saved.append(storage.save_single(licence_gdf, "Cadastre_Minier_Ci", timestamp))
+        else:
+            logger.warning("Aucun groupe Demandes/Licences disponible.")
+
+        # Administration : fichier multi-couches
+        admin = data_feature.get(cfg.ADMIN_GROUP) or {}
+        if admin:
+            saved.append(storage.save_layered(admin, "Admin_Ci", timestamp))
+        else:
+            logger.warning("Aucune couche '%s' disponible.", cfg.ADMIN_GROUP)
+
+        # Upload Google Drive
+        uploaded = storage.upload_outputs(saved)
+        if uploaded:
+            logger.info(
+                "✅ %d fichier(s) uploadé(s) : %s",
+                len(uploaded), list(uploaded.keys()),
+            )
+        else:
+            logger.warning("Aucun fichier uploadé sur Drive.")
+
+        logger.info("══════════════════════════════════════════════════════")
+        logger.info("  Pipeline terminé avec succès.")
+        logger.info("══════════════════════════════════════════════════════")
+        return 0
+
+    except Exception as exc:
+        get_logger().exception("❌ ERREUR CRITIQUE : %s", exc)
+        return 1
+
 
 if __name__ == "__main__":
-    # 1) exécuter ton scraping existant
-    html = u.extract_html(c.url).text
-    html_json = u.extract_json(html)
-    data_info = u.extract_data_info(html_json)
-    data_json = u.extract_data_json(data_info)
-    data_feature = u.extract_data_feature(data_json)
-
-    licence = u.fusion_feature(data_feature.get("Demandes", {}), data_feature.get("Licences", {}))
-    admin = data_feature.get("Administration", {})
-
-    print (" ")
-    u.save_file_admin(admin, "Admin_Ci")
-    u.save_file_licence(licence, "Cadastre_Minier_Ci")
-    print (" ")
-    u.fin()
-    
-    # 2) Lister les fichiers locaux avant envoi
-    output_dir = os.environ.get("OUTPUT_DIR", getattr(c, "output", "outputs/")).rstrip("/")
-    files = sorted(Path(output_dir).glob("*"))
-
-    print(f"[LOCAL] Dossier de sortie : {output_dir}")
-    print(f"[LOCAL] Nombre de fichiers détectés : {len(files)}")
-    for f in files:
-        try:
-            size = f.stat().st_size
-        except Exception as e:
-            size = f"(taille inconnue : {e})"
-        print(f"[LOCAL] - {f.name} ({size} octets)")
-
-    if not files:
-        raise SystemExit(f"[ERREUR] Aucun fichier trouvé dans '{output_dir}'. "
-                         f"Vérifie la cohérence entre config.output et l’écriture des fichiers.")
-
-    # 3) Upload vers Google Drive
-    # ... imports ...
-
-    output_dir = os.environ.get("OUTPUT_DIR", "outputs")
-    env_folder_id = os.environ.get("DRIVE_FOLDER_ID", "").strip() or None
-    
-    # Vérifier/Créer le dossier cible
-    try:
-        folder_id = gu.ensure_folder_exists(env_folder_id, fallback_name="CadastreExtrac")
-        if not env_folder_id:
-            print(f"[DRIVE] Dossier créé: CadastreExtrac → folderId={folder_id}")
-            print("[DRIVE] Copie cet ID dans le secret DRIVE_FOLDER_ID pour les prochains runs.")
-    except Exception as e:
-        print("[DRIVE] Impossible d’accéder au dossier cible. Détails :", e)
-        print("Conseils :")
-        print("- Si tu utilises le scope drive.file, le dossier doit être créé/visible par l’app (Option B).")
-        print("- Sinon, passe au scope complet drive et régénère le refresh token (Option A).")
-        raise
-    
-    def guess_mime(p: Path) -> str | None:
-        if p.suffix.lower() == ".gpkg":
-            return "application/geopackage+sqlite3"
-        return None
-    
-    files = [p for p in Path(output_dir).glob("*") if p.is_file() and not p.name.startswith(".")]
-    print(f"[LOCAL] Dossier de sortie : {output_dir}")
-    print(f"[LOCAL] Nombre de fichiers détectés : {len(files)}")
-    
-    for p in files:
-        try:
-            fid = gu.upload_file_to_drive(str(p), folder_id, mime=guess_mime(p))
-            print(f"[DRIVE] Upload OK: {p.name} → fileId={fid}")
-        except Exception as e:
-            print(f"[DRIVE] ERREUR sur {p.name} : {e}")
+    sys.exit(run())
