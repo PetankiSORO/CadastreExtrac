@@ -80,7 +80,6 @@ jobs:
                 "   - `GDRIVE_CLIENT_ID`",
                 "   - `GDRIVE_CLIENT_SECRET`",
                 "   - `GDRIVE_REFRESH_TOKEN`",
-                "   - `GDRIVE_SA_JSON`",
                 "4. Les quotas Google Drive",
               ].join("\n"),
               labels: ["bug", "automated"],
